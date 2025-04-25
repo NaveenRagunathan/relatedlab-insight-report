@@ -1,5 +1,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTasks } from "@/hooks/useTasks";
 
 interface TaskStatus {
   name: string;
@@ -7,14 +8,22 @@ interface TaskStatus {
   color: string;
 }
 
-const statuses: TaskStatus[] = [
-  { name: "Backlog", count: 24, color: "bg-status-backlog" },
-  { name: "In Progress", count: 4, color: "bg-status-progress" },
-  { name: "Validation", count: 7, color: "bg-status-validation" },
-  { name: "Done", count: 13, color: "bg-status-done" },
-];
-
 const TaskProgressBar = () => {
+  const { tasks } = useTasks();
+  
+  // Calculate task counts for each status
+  const backlogCount = tasks.filter(task => task.status === "backlog").length;
+  const inProgressCount = tasks.filter(task => task.status === "in-progress").length;
+  const validationCount = tasks.filter(task => task.status === "validation").length;
+  const doneCount = tasks.filter(task => task.status === "done").length;
+  
+  const statuses: TaskStatus[] = [
+    { name: "Backlog", count: backlogCount, color: "bg-status-backlog" },
+    { name: "In Progress", count: inProgressCount, color: "bg-status-progress" },
+    { name: "Validation", count: validationCount, color: "bg-status-validation" },
+    { name: "Done", count: doneCount, color: "bg-status-done" },
+  ];
+  
   const total = statuses.reduce((acc, status) => acc + status.count, 0);
   
   return (
@@ -25,7 +34,7 @@ const TaskProgressBar = () => {
       <CardContent>
         <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted mb-5">
           {statuses.map((status) => {
-            const width = (status.count / total) * 100;
+            const width = total > 0 ? (status.count / total) * 100 : 0;
             return (
               <div
                 key={status.name}

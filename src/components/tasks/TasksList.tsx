@@ -11,10 +11,26 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, MessageSquare, Calendar, ChevronDown } from "lucide-react";
+import { 
+  MoreHorizontal, 
+  MessageSquare, 
+  Calendar, 
+  ChevronDown,
+  Edit,
+  Trash2,
+  FileDown
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/hooks/useTasks";
 import { Task, TaskStatus } from "@/types/task";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TaskForm } from "./TaskForm";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const priorityStyles = {
   urgent: "bg-priority-urgent/10 text-priority-urgent",
@@ -32,14 +48,12 @@ const statusStyles = {
 
 const TasksList = () => {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
-  const { tasks, isLoading, error, deleteTask } = useTasks();
+  const [editTask, setEditTask] = useState<Task | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const { tasks, isLoading, error, deleteTask, exportTasks } = useTasks(statusFilter);
   
-  const filteredTasks = useMemo(() => {
-    if (statusFilter === "all") return tasks;
-    return tasks.filter(task => task.status === statusFilter);
-  }, [statusFilter, tasks]);
-  
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "No due date";
     const date = new Date(dateString);
     return new Intl.DateTimeFormat("en-US", {
       month: "short",
@@ -52,6 +66,21 @@ const TasksList = () => {
     const today = new Date();
     const dueDate = new Date(dateString);
     return dueDate < today;
+  };
+
+  const handleEditTask = (task: Task) => {
+    setEditTask(task);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      deleteTask.mutate(taskId);
+    }
+  };
+
+  const handleExport = (format: "csv" | "json") => {
+    exportTasks(format);
   };
 
   if (isLoading) {
@@ -67,6 +96,22 @@ const TasksList = () => {
       <div className="p-4 border-b flex justify-between items-center">
         <div className="font-semibold">Tasks</div>
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <FileDown className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleExport("csv")}>
+                Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("json")}>
+                Export as JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline" 
             size="sm" 
@@ -133,61 +178,89 @@ const TasksList = () => {
             <TableHead className="w-[100px]">Priority</TableHead>
             <TableHead className="w-[120px]">Due Date</TableHead>
             <TableHead className="w-[120px]">Category</TableHead>
-            <TableHead className="w-[50px]"></TableHead>
+            <TableHead className="w-[80px]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredTasks.map((task) => (
-            <TableRow key={task.id}>
-              <TableCell className="font-mono text-sm">{task.id.slice(0, 8)}</TableCell>
-              <TableCell className="font-medium">{task.title}</TableCell>
-              <TableCell>
-                <Badge 
-                  variant="outline" 
-                  className={cn("font-normal border-l-4 pl-2", statusStyles[task.status as keyof typeof statusStyles])}
-                >
-                  {task.status.replace("-", " ")}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge 
-                  variant="outline" 
-                  className={cn("font-normal", priorityStyles[task.priority])}
-                >
-                  {task.priority}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-1">
-                  <Calendar size={14} className="text-muted-foreground" />
-                  <span 
-                    className={cn(
-                      isOverdue(task.end_time) && task.status !== "done" && "text-destructive"
-                    )}
-                  >
-                    {task.end_time ? formatDate(task.end_time) : "No due date"}
-                  </span>
-                </div>
-              </TableCell>
-              <TableCell>{task.category || "Uncategorized"}</TableCell>
-              <TableCell>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8"
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to delete this task?")) {
-                      deleteTask.mutate(task.id);
-                    }
-                  }}
-                >
-                  <MoreHorizontal size={16} />
-                </Button>
+          {tasks.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                No tasks found. Create a new task to get started.
               </TableCell>
             </TableRow>
-          ))}
+          ) : (
+            tasks.map((task) => (
+              <TableRow key={task.id}>
+                <TableCell className="font-mono text-sm">{task.id.slice(0, 8)}</TableCell>
+                <TableCell className="font-medium">{task.title}</TableCell>
+                <TableCell>
+                  <Badge 
+                    variant="outline" 
+                    className={cn("font-normal border-l-4 pl-2", statusStyles[task.status as keyof typeof statusStyles])}
+                  >
+                    {task.status.replace("-", " ")}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge 
+                    variant="outline" 
+                    className={cn("font-normal", priorityStyles[task.priority])}
+                  >
+                    {task.priority}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Calendar size={14} className="text-muted-foreground" />
+                    <span 
+                      className={cn(
+                        isOverdue(task.end_time) && task.status !== "done" && "text-destructive"
+                      )}
+                    >
+                      {task.end_time ? formatDate(task.end_time) : "No due date"}
+                    </span>
+                  </div>
+                </TableCell>
+                <TableCell>{task.category || "Uncategorized"}</TableCell>
+                <TableCell>
+                  <div className="flex items-center">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => handleEditTask(task)}
+                    >
+                      <Edit size={16} />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => handleDeleteTask(task.id)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
+      
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          {editTask && (
+            <TaskForm 
+              task={editTask} 
+              onSuccess={() => setIsEditDialogOpen(false)} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
