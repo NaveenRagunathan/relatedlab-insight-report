@@ -6,9 +6,12 @@ import { defineConfig } from "vite";
 export default defineConfig({
   // Base public path when served on GitHub Pages
   base: '/relatedlab-insight-report/',
+  publicDir: 'public',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    assetsDir: 'assets',
+    copyPublicDir: true,
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html')
