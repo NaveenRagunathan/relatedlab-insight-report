@@ -7,6 +7,12 @@ import { defineConfig } from "vite";
 export default defineConfig(({ mode }) => ({
   // Base public path when served on GitHub Pages
   base: '/relatedlab-insight-report/',
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
+    sourcemap: true,
+  },
   server: {
     host: "::",
     port: 8080,
