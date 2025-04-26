@@ -6,82 +6,95 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type Database = {
+export interface Database {
   public: {
     Tables: {
       profiles: {
         Row: {
-          created_at: string | null
-          full_name: string | null
           id: string
+          created_at: string
+          full_name: string
         }
         Insert: {
-          created_at?: string | null
-          full_name?: string | null
           id: string
+          created_at?: string
+          full_name?: string
         }
         Update: {
-          created_at?: string | null
-          full_name?: string | null
           id?: string
+          created_at?: string
+          full_name?: string
         }
         Relationships: []
       }
       tasks: {
         Row: {
-          actual_minutes: number | null
-          category: string | null
-          color: string | null
-          created_at: string | null
-          description: string | null
-          end_time: string | null
-          estimated_minutes: number
           id: string
-          priority: string | null
-          start_time: string | null
-          status: string | null
           title: string
+          description: string | null
+          status: string
+          priority: string
+          estimated_minutes: number
+          actual_minutes: number | null
+          start_time: string | null
+          end_time: string | null
+          created_at: string
+          color: string | null
+          category: string | null
           user_id: string
         }
         Insert: {
-          actual_minutes?: number | null
-          category?: string | null
-          color?: string | null
-          created_at?: string | null
-          description?: string | null
-          end_time?: string | null
-          estimated_minutes?: number
           id?: string
-          priority?: string | null
-          start_time?: string | null
-          status?: string | null
           title: string
+          description?: string | null
+          status?: string
+          priority?: string
+          estimated_minutes?: number
+          actual_minutes?: number | null
+          start_time?: string | null
+          end_time?: string | null
+          created_at?: string
+          color?: string | null
+          category?: string | null
           user_id: string
         }
         Update: {
-          actual_minutes?: number | null
-          category?: string | null
-          color?: string | null
-          created_at?: string | null
-          description?: string | null
-          end_time?: string | null
-          estimated_minutes?: number
           id?: string
-          priority?: string | null
-          start_time?: string | null
-          status?: string | null
           title?: string
+          description?: string | null
+          status?: string
+          priority?: string
+          estimated_minutes?: number
+          actual_minutes?: number | null
+          start_time?: string | null
+          end_time?: string | null
+          created_at?: string
+          color?: string | null
+          category?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "tasks_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          id: string
+          name: string
+          color: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          color: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          color?: string
+          created_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

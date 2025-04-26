@@ -1,5 +1,4 @@
-
-export type TaskStatus = "backlog" | "in-progress" | "validation" | "done";
+export type TaskStatus = "not-started" | "in-progress" | "completed";
 export type TaskPriority = "urgent" | "high" | "normal" | "low";
 
 export interface Task {

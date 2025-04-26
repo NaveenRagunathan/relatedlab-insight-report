@@ -1,71 +1,76 @@
-
-import { useMemo, useState } from "react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  MoreHorizontal, 
-  MessageSquare, 
-  Calendar, 
-  ChevronDown,
-  Edit,
-  Trash2,
-  FileDown
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useTasks } from "@/hooks/useTasks";
-import { Task, TaskStatus } from "@/types/task";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { TaskForm } from "./TaskForm";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from "@/components/ui/table";
+import { useTasks } from "@/hooks/useTasks";
+import { cn } from "@/lib/utils";
+import { Task, TaskPriority, TaskStatus } from "@/types/task";
+import {
+    Calendar,
+    Edit,
+    Share,
+    Trash2
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { TaskForm } from "./TaskForm";
 
-const priorityStyles = {
-  urgent: "bg-priority-urgent/10 text-priority-urgent",
-  high: "bg-priority-high/10 text-priority-high",
-  normal: "bg-priority-normal/10 text-priority-normal",
-  low: "bg-priority-low/10 text-priority-low",
+const priorityStyles: Record<TaskPriority, string> = {
+  urgent: "bg-red-100 text-red-700 border-red-200",
+  high: "bg-orange-100 text-orange-700 border-orange-200",
+  normal: "bg-blue-100 text-blue-700 border-blue-200",
+  low: "bg-gray-100 text-gray-700 border-gray-200",
 };
 
-const statusStyles = {
-  backlog: "bg-status-backlog/10 text-status-backlog border-status-backlog",
-  "in-progress": "bg-status-progress/10 text-status-progress border-status-progress",
-  validation: "bg-status-validation/10 text-status-validation border-status-validation",
-  done: "bg-status-done/10 text-status-done border-status-done",
+const statusStyles: Record<TaskStatus, string> = {
+  "not-started": "bg-gray-100 text-gray-700 border-gray-300",
+  "in-progress": "bg-yellow-100 text-yellow-700 border-yellow-300",
+  "completed": "bg-green-100 text-green-700 border-green-300",
 };
 
-const TasksList = () => {
+const ALL_STATUSES: TaskStatus[] = ["not-started", "in-progress", "completed"];
+
+interface TasksListProps {
+  tasks: Task[] | undefined;
+  onShare?: (task: Task) => void;
+}
+
+const TasksList = ({ tasks: initialTasks = [], onShare }: TasksListProps) => {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const { tasks, isLoading, error, deleteTask, exportTasks } = useTasks(statusFilter);
+  const { deleteTask } = useTasks();
   
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "No due date";
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-    }).format(date);
+  const filteredTasksByStatus = useMemo(() => {
+      if (statusFilter === "all") {
+          return initialTasks;
+      }
+      return initialTasks.filter(task => task.status === statusFilter);
+  }, [initialTasks, statusFilter]);
+  
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "-";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Invalid";
+      return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+    } catch (e) { return "Error"; }
   };
   
-  const isOverdue = (dateString: string | null) => {
-    if (!dateString) return false;
-    const today = new Date();
-    const dueDate = new Date(dateString);
-    return dueDate < today;
+  const isOverdue = (dateString: string | null | undefined, status: TaskStatus) => {
+    if (!dateString || status === 'completed') return false;
+    try {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const dueDate = new Date(dateString); if (isNaN(dueDate.getTime())) return false;
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate < today;
+    } catch (e) { return false; }
   };
 
   const handleEditTask = (task: Task) => {
@@ -74,129 +79,69 @@ const TasksList = () => {
   };
 
   const handleDeleteTask = (taskId: string) => {
-    if (window.confirm("Are you sure you want to delete this task?")) {
+    if (window.confirm("Delete task?")) {
       deleteTask.mutate(taskId);
     }
   };
 
-  const handleExport = (format: "csv" | "json") => {
-    exportTasks(format);
-  };
-
-  if (isLoading) {
-    return <div className="text-center p-4">Loading tasks...</div>;
-  }
-
-  if (error) {
-    return <div className="text-center text-destructive p-4">Error loading tasks</div>;
-  }
-  
   return (
     <div className="rounded-md border">
-      <div className="p-4 border-b flex justify-between items-center">
-        <div className="font-semibold">Tasks</div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <FileDown className="mr-2 h-4 w-4" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport("csv")}>
-                Export as CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("json")}>
-                Export as JSON
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <div className="p-4 border-b flex justify-between items-center flex-wrap gap-y-2">
+        <div className="font-semibold text-lg">Tasks ({filteredTasksByStatus.length})</div>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
-            variant="outline" 
+            variant={statusFilter === "all" ? "secondary" : "outline"} 
             size="sm" 
             onClick={() => setStatusFilter("all")}
-            className={cn(
-              "text-sm",
-              statusFilter === "all" && "bg-secondary"
-            )}
+            className="text-sm"
           >
             All
           </Button>
-          <Button
-            variant="outline" 
-            size="sm" 
-            onClick={() => setStatusFilter("backlog")}
-            className={cn(
-              "text-sm",
-              statusFilter === "backlog" && "bg-secondary"
-            )}
-          >
-            Backlog
-          </Button>
-          <Button
-            variant="outline" 
-            size="sm" 
-            onClick={() => setStatusFilter("in-progress")}
-            className={cn(
-              "text-sm",
-              statusFilter === "in-progress" && "bg-secondary"
-            )}
-          >
-            In Progress
-          </Button>
-          <Button
-            variant="outline" 
-            size="sm" 
-            onClick={() => setStatusFilter("validation")}
-            className={cn(
-              "text-sm",
-              statusFilter === "validation" && "bg-secondary"
-            )}
-          >
-            Validation
-          </Button>
-          <Button
-            variant="outline" 
-            size="sm" 
-            onClick={() => setStatusFilter("done")}
-            className={cn(
-              "text-sm",
-              statusFilter === "done" && "bg-secondary"
-            )}
-          >
-            Done
-          </Button>
+          {ALL_STATUSES.map(status => (
+             <Button
+                key={status}
+                variant={statusFilter === status ? "secondary" : "outline"}
+                size="sm" 
+                onClick={() => setStatusFilter(status)}
+                className={cn("text-sm capitalize", statusStyles[status])}
+            >
+                {status.replace("-", " ")}
+            </Button>
+          ))}
         </div>
       </div>
+      
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[100px]">ID</TableHead>
+            <TableHead className="w-[80px]">ID</TableHead>
             <TableHead>Task</TableHead>
-            <TableHead className="w-[100px]">Status</TableHead>
+            <TableHead className="w-[110px]">Status</TableHead>
             <TableHead className="w-[100px]">Priority</TableHead>
-            <TableHead className="w-[120px]">Due Date</TableHead>
+            <TableHead className="w-[110px]">Due Date</TableHead>
             <TableHead className="w-[120px]">Category</TableHead>
-            <TableHead className="w-[80px]">Actions</TableHead>
+            <TableHead className="w-[80px] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {tasks.length === 0 ? (
+          {filteredTasksByStatus.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                No tasks found. Create a new task to get started.
+                {initialTasks.length === 0 ? "No tasks found." : "No tasks match filters."}
               </TableCell>
             </TableRow>
           ) : (
-            tasks.map((task) => (
+            filteredTasksByStatus.map((task) => (
               <TableRow key={task.id}>
-                <TableCell className="font-mono text-sm">{task.id.slice(0, 8)}</TableCell>
-                <TableCell className="font-medium">{task.title}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{task.id.slice(0, 6)}</TableCell>
+                <TableCell className="font-medium">{task.title || "Untitled Task"}</TableCell>
                 <TableCell>
                   <Badge 
                     variant="outline" 
-                    className={cn("font-normal border-l-4 pl-2", statusStyles[task.status as keyof typeof statusStyles])}
+                    className={cn(
+                      "font-normal border-l-4 pl-2 capitalize", 
+                      statusStyles[task.status]
+                    )}
                   >
                     {task.status.replace("-", " ")}
                   </Badge>
@@ -204,43 +149,53 @@ const TasksList = () => {
                 <TableCell>
                   <Badge 
                     variant="outline" 
-                    className={cn("font-normal", priorityStyles[task.priority])}
+                    className={cn(
+                      "font-normal capitalize", 
+                      priorityStyles[task.priority]
+                    )}
                   >
                     {task.priority}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className={cn(isOverdue(task.end_time, task.status) && "text-destructive")}>
                   <div className="flex items-center gap-1">
-                    <Calendar size={14} className="text-muted-foreground" />
-                    <span 
-                      className={cn(
-                        isOverdue(task.end_time) && task.status !== "done" && "text-destructive"
-                      )}
-                    >
-                      {task.end_time ? formatDate(task.end_time) : "No due date"}
-                    </span>
+                    <Calendar size={14} />
+                    <span>{formatDate(task.end_time)}</span>
                   </div>
                 </TableCell>
-                <TableCell>{task.category || "Uncategorized"}</TableCell>
-                <TableCell>
-                  <div className="flex items-center">
+                <TableCell className="text-sm text-muted-foreground capitalize">
+                  {task.category || "-"}
+                </TableCell>
+                <TableCell className="text-right">
+                  {onShare && (
                     <Button 
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8"
-                      onClick={() => handleEditTask(task)}
+                      onClick={() => onShare(task)}
+                      aria-label="Share Task"
                     >
-                      <Edit size={16} />
+                      <Share size={16} />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8"
-                      onClick={() => handleDeleteTask(task.id)}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
+                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8"
+                    onClick={() => handleEditTask(task)}
+                    aria-label="Edit Task"
+                  >
+                    <Edit size={16} />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-destructive hover:text-destructive/80"
+                    onClick={() => handleDeleteTask(task.id)}
+                    aria-label="Delete Task"
+                  >
+                    <Trash2 size={16} />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))
@@ -256,7 +211,10 @@ const TasksList = () => {
           {editTask && (
             <TaskForm 
               task={editTask} 
-              onSuccess={() => setIsEditDialogOpen(false)} 
+              onSuccess={() => {
+                setIsEditDialogOpen(false);
+                setEditTask(null);
+              }} 
             />
           )}
         </DialogContent>

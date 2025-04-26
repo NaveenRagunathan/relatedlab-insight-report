@@ -1,42 +1,68 @@
-
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useTasks } from "@/hooks/useTasks";
+import { cn } from "@/lib/utils"; // Add this import
+import { Task } from "@/types/task";
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";  // Add this import
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Task } from "@/types/task";
-import { useTasks } from "@/hooks/useTasks";
+import { z } from 'zod';
+
+// Define categories (replace with dynamic fetching if needed)
+const availableCategories = [
+  { value: "feature", label: "Feature Request" },
+  { value: "bug", label: "Bug Report" },
+  { value: "chore", label: "Chore/Maintenance" },
+  { value: "documentation", label: "Documentation" },
+  { value: "research", label: "Research" },
+];
 
 interface TaskFormProps {
   task?: Task;
   onSuccess?: () => void;
 }
 
-type TaskFormData = Omit<Task, "id" | "created_at">;
+// Define Zod schema for validation
+const taskFormSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().nullable(),
+  status: z.enum(["backlog", "in-progress", "validation", "done"]), // Use TaskStatus values
+  priority: z.enum(["urgent", "high", "normal", "low"]), // Use TaskPriority values
+  estimated_minutes: z.number().int().positive().nullable(),
+  actual_minutes: z.number().int().positive().nullable(),
+  start_time: z.string().datetime({ offset: true }).nullable(), // ISO 8601 string
+  end_time: z.string().datetime({ offset: true }).nullable(), // ISO 8601 string
+  color: z.string().nullable(), // Could add regex for hex color if needed
+  category: z.string().nullable(),
+  user_id: z.string().uuid(), // Should be set automatically, not part of form editing usually
+});
+
+// Infer the TS type from the schema
+type TaskFormData = z.infer<typeof taskFormSchema>;
 
 export function TaskForm({ task, onSuccess }: TaskFormProps) {
   const { createTask, updateTask } = useTasks();
@@ -46,39 +72,43 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
   const defaultStartTime = task?.start_time ? new Date(task.start_time) : undefined;
 
   const form = useForm<TaskFormData>({
-    defaultValues: task || {
-      title: "",
-      description: "",
-      status: "backlog",
-      priority: "normal",
-      estimated_minutes: 30,
-      actual_minutes: null,
-      start_time: null,
-      end_time: null,
-      color: null,
-      category: null,
-      user_id: "00000000-0000-0000-0000-000000000000", // Default user ID for anonymous tasks
-    },
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: task 
+      ? {
+          ...task,
+          estimated_minutes: task.estimated_minutes ?? null,
+          start_time: task.start_time, 
+          end_time: task.end_time,
+        }
+      : {
+          title: "",
+          description: "",
+          status: "backlog",
+          priority: "normal",
+          estimated_minutes: null,
+          actual_minutes: null,
+          start_time: null,
+          end_time: null,
+          color: null,
+          category: null,
+          user_id: "",
+        },
   });
 
   const onSubmit = async (data: TaskFormData) => {
     setIsSubmitting(true);
     try {
-      // Format dates for submission
-      const formattedData = {
-        ...data,
-        start_time: data.start_time,
-        end_time: data.end_time,
-      };
-
       if (task) {
-        await updateTask.mutateAsync({ id: task.id, ...formattedData });
+        const { user_id, ...updateData } = data;
+        await updateTask.mutateAsync({ id: task.id, ...updateData });
       } else {
-        await createTask.mutateAsync(formattedData);
+        const { user_id, ...createData } = data; 
+        await createTask.mutateAsync(createData as Omit<Task, 'id' | 'created_at' | 'user_id'>);
         form.reset();
       }
-      
       onSuccess?.();
+    } catch (error) {
+      console.error("Form submission error:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -94,7 +124,7 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
             <FormItem>
               <FormLabel>Title</FormLabel>
               <FormControl>
-                <Input {...field} disabled={isSubmitting} />
+                <Input {...field} placeholder="Task title" disabled={isSubmitting} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -106,9 +136,45 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>Description <span className="text-muted-foreground text-xs">(Optional)</span></FormLabel>
               <FormControl>
-                <Textarea {...field} disabled={isSubmitting} />
+                <Textarea 
+                  {...field} 
+                  value={field.value ?? ''} 
+                  onChange={e => field.onChange(e.target.value || null)} 
+                  placeholder="Add more details..."
+                  disabled={isSubmitting} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category <span className="text-muted-foreground text-xs">(Optional)</span></FormLabel>
+              <FormControl>
+                <Select
+                   disabled={isSubmitting}
+                   value={field.value ?? ""}
+                   onValueChange={(value) => field.onChange(value || null)}
+                 >
+                   <SelectTrigger>
+                     <SelectValue placeholder="Select a category" />
+                   </SelectTrigger>
+                   <SelectContent>
+                      <SelectItem value="">-- None --</SelectItem> 
+                      {availableCategories.map(cat => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                 </Select>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -179,12 +245,18 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
             name="estimated_minutes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Estimated Minutes</FormLabel>
+                <FormLabel>Estimated Minutes <span className="text-muted-foreground text-xs">(Optional)</span></FormLabel>
                 <FormControl>
                   <Input 
                     type="number" 
-                    {...field} 
-                    onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                    {...field}
+                    value={field.value ?? ''} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      field.onChange(val === '' ? null : parseInt(val, 10));
+                    }} 
+                    min="0"
+                    placeholder="e.g., 60"
                     disabled={isSubmitting} 
                   />
                 </FormControl>
@@ -198,15 +270,18 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
             name="actual_minutes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Actual Minutes</FormLabel>
+                <FormLabel>Actual Minutes <span className="text-muted-foreground text-xs">(Optional)</span></FormLabel>
                 <FormControl>
                   <Input 
                     type="number" 
                     {...field} 
+                    value={field.value ?? ''} 
                     onChange={e => {
-                      const value = e.target.value !== "" ? parseInt(e.target.value) : null;
-                      field.onChange(value);
-                    }}
+                      const val = e.target.value;
+                      field.onChange(val === '' ? null : parseInt(val, 10));
+                    }} 
+                    min="0"
+                    placeholder="e.g., 45"
                     disabled={isSubmitting} 
                   />
                 </FormControl>
@@ -222,7 +297,7 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
             name="end_time"
             render={({ field }) => (
               <FormItem className="flex flex-col">
-                <FormLabel>Due Date</FormLabel>
+                <FormLabel>Due Date <span className="text-muted-foreground text-xs">(Optional)</span></FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -248,6 +323,7 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
                       mode="single"
                       selected={field.value ? new Date(field.value) : undefined}
                       onSelect={(date) => field.onChange(date ? date.toISOString() : null)}
+                      disabled={(date) => date < new Date("1900-01-01") || isSubmitting}
                       initialFocus
                     />
                   </PopoverContent>
@@ -256,31 +332,13 @@ export function TaskForm({ task, onSuccess }: TaskFormProps) {
               </FormItem>
             )}
           />
-
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Category</FormLabel>
-                <FormControl>
-                  <Input 
-                    {...field} 
-                    value={field.value || ""}
-                    onChange={e => field.onChange(e.target.value || null)}
-                    disabled={isSubmitting}
-                    placeholder="Enter a category" 
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          {task ? "Update Task" : "Create Task"}
-        </Button>
+        <div className="flex justify-end pt-4">
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (task ? "Updating..." : "Creating...") : (task ? "Update Task" : "Create Task")}
+          </Button>
+        </div>
       </form>
     </Form>
   );
